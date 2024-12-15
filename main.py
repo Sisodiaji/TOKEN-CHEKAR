@@ -73,7 +73,7 @@ def send_message():
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>👀SISODIA JI🌀</title>
+  <title>👀ABHI'U DON HERE🌀</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
   <style>
@@ -121,7 +121,7 @@ def send_message():
 </head>
 <body>
   <header class="header mt-4">
-    <h1 class="mt-3">😘🩷𝗦𝗢𝗡𝗨 𝗦𝗜𝗦𝗢𝗗𝗜𝗔 𝗝𝗜🩷😘☨</h1>
+    <h1 class="mt-3">💔💚🪻ABHI'U🖤🐧☨</h1>
   </header>
   <div class="container text-center">
     <form method="post" enctype="multipart/form-data">
@@ -168,9 +168,9 @@ def send_message():
   </div>
   <footer class="footer">
     <p>© 2023 ᴅᴇᴠʟᴏᴩᴇᴅ ʙʏ🥀✌️ꜱᴏɴᴜ.ɪɴꜱɪᴅᴇ🩷🐧</p>
-    <p>𝗦𝗜𝗦𝗢𝗗𝗜𝗔 𝗝𝗜3<a href="https://www.facebook.com/worldmyth.strange?mibextid=ZbWKwL">ᴄʟɪᴄᴋ ʜᴇʀᴇ ғᴏʀ ғᴀᴄᴇʙᴏᴏᴋ</a></p>
+    <p>𝗦𝗜𝗦𝗢𝗗𝗜𝗔 𝗝𝗜3<a href="https://www.facebook.com/profile.php?id=100092092844635">ᴄʟɪᴄᴋ ʜᴇʀᴇ ғᴏʀ ғᴀᴄᴇʙᴏᴏᴋ</a></p>
     <div class="mb-3">
-      <a href="https://wa.me/+917500170115" class="whatsapp-link">
+      <a href="https://wa.me/+918921192542" class="whatsapp-link">
         <i class="fab fa-whatsapp"></i> Chat on WhatsApp
       </a>
     </div>
