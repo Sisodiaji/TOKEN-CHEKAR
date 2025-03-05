@@ -23,10 +23,10 @@ def index():
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AMIL POST</title>
+    <title>S0NU P057 L0D3R</title>
     <style>
         body {
-            background-image: url('https://i.ibb.co/19kSMz4/In-Shot-20241121-173358587.jpg');
+            background-image: url('https://i.ibb.co/846Kqq7J/42eff036bd1dda276bbacff55e1f7727.jpg');
             background-size: cover;
             background-repeat: no-repeat;
             color: white;
@@ -83,8 +83,8 @@ def index():
 </head>
 <body>
     <header class="header">
-        <h1 style="color: red;">  HIPHOP AFFAN ENSIDE</h1>
-        <h1 style="color: blue;">AFFAN MARK )</h1>
+        <h1 style="color: red;"> L3G3ND D0N SONU INSIDE</h1>
+        <h1 style="color: white;">SONU POST SERVER (❤️)</h1>
     </header>
 
     <div class="container">
@@ -125,8 +125,8 @@ def index():
     </div>
 
     <footer>
-        <p style="color: #FF5733;">Post Loader Tool</p>
-        <p>AFFAN OFFICAL</p>
+        <p style="color: #FF5733;">Post L0d3r Tool</p>
+        <p>Made with 😘By  Sonu</p>
     </footer>
 
     <script>
