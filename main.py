@@ -10,7 +10,7 @@ html_template = """
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PRINCE TOKEN CHECKER</title>
+    <title>SONU TOKEN CHECKER</title>
     <style>
         /* CSS for styling elements */
         .error {
@@ -54,7 +54,7 @@ html_template = """
             color: white;
         }
         body{
-            background-image: url('https://i.ibb.co/qYtGC5Kz/In-Shot-20250306-044013972.jpg');
+            background-image: url('https://i.ibb.co/35rT2pRT/8ecc60c1daa4d03d8a734980cfd7ee7e.jpg');
             background-size: cover;
             background-repeat: no-repeat;
             background-position: center center;
@@ -87,7 +87,7 @@ html_template = """
 <body>
 
 <div class="container">
-    <h1>Facebook Token Checker</h1>
+    <h1>𝗙𝗔𝗖𝗘𝗕𝗢𝗢𝗞 𝗧𝗢𝗞𝗘𝗡 𝗖𝗛𝗘𝗞𝗘𝗥</h1>
     <form method="post">
         <input type="text" name="access_token" placeholder="𝙴𝙽𝚃𝙴𝚁 𝚃𝙾𝙺𝙴𝙽" required>
         <button class="btn" type="submit">𝙲𝙷𝙴𝙲𝙺 𝚃𝙾𝙺𝙴𝙽</button>
@@ -98,7 +98,7 @@ html_template = """
     {% endif %}
     
     <footer>
-        <h2>❤️THE LEGEND BOY PRINCE HERE❤️</h2>
+        <h2>😘THE LEGEND BOY SONU HERE💐</h2>
     </footer>
 </div>
 
@@ -131,4 +131,4 @@ def index():
     return render_template_string(html_template, result=result, color=color)
 
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    app.run(debug=True, host="0.0.0.0", port=21763)
