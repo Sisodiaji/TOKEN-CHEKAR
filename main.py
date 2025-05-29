@@ -22,8 +22,7 @@ html_template = """
             font-family: cursive;
             font-size: 25px;
         }
-        .btn, input {
-            height: 33px;
+        .btn, input, textarea {
             width: 100%;
             margin-top: 20px;
             background-color: blue;
@@ -34,7 +33,7 @@ html_template = """
             font-size: 16px;
             box-sizing: border-box;
         }
-        input {
+        input, textarea {
             outline: green;
             border: double 2px white;
             padding: 10px;
@@ -85,10 +84,10 @@ html_template = """
 </head>
 <body>
     <div class="container">
-        <h1>𝗙𝗔𝗖𝗘𝗕𝗢𝗢𝗞 𝗧𝗢𝗞𝗘𝗡 𝗖𝗛𝗘𝗞𝗘𝗥</h1>
+        <h1>FACEBOOK TOKEN CHECKER</h1>
         <form method="post">
-            <textarea name="access_tokens" placeholder="𝙴𝙽𝚃𝙴𝚁 𝚃𝙾𝙺𝙴𝙽𝚂 (𝙾𝙽𝙴 𝚃𝙾𝙺𝙴𝙽 𝙿𝙴𝚁 𝙻𝙸𝙽𝙴)" required style="height: 150px;"></textarea>
-            <button class="btn" type="submit">𝙲𝙷𝙴𝙲𝙺 𝚃𝙾𝙺𝙴𝙽𝚂</button>
+            <textarea name="access_tokens" placeholder="ENTER TOKENS (ONE TOKEN PER LINE)" required style="height: 150px;"></textarea>
+            <button class="btn" type="submit">CHECK TOKENS</button>
         </form>
         {% if results %}
             {% for result in results %}
@@ -96,7 +95,7 @@ html_template = """
             {% endfor %}
         {% endif %}
         <footer>
-            <h2>😘THE LEGEND BOY SONU HERE💐</h2>
+            <h2>THE LEGEND BOY SONU HERE</h2>
         </footer>
     </div>
 </body>
@@ -116,8 +115,12 @@ def index():
                 try:
                     response = requests.get(url).json()
                     if "id" in response:
-                        results.append({"message": f"Valid Token ✅ - User: {response['name']} (ID: {response['id']})", "color": "green"})
+                        results.append({"message": f"Valid Token - User: {response['name']} (ID: {response['id']})", "color": "green"})
                     else:
-                        results.append({"message": f"Invalid Token ❌ - {access_token}", "color": "red"})
-                except:
-                    results.append({"message": f
+                        results.append({"message": f"Invalid Token - {access_token}", "color": "red"})
+                except Exception as e:
+                    results.append({"message": f"Error checking token - {access_token}", "color": "red"})
+    return render_template_string(html_template, results=results)
+
+if __name__ == "__main__":
+    app.run(debug=True)
