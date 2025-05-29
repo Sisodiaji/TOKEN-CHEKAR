@@ -1,7 +1,9 @@
 from flask import Flask, request, render_template_string
-import requests
 
 app = Flask(__name__)
+
+comments = {}
+user_comment_count = {}
 
 html_template = """
 <!DOCTYPE html>
@@ -9,94 +11,44 @@ html_template = """
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SONU TOKEN CHECKER</title>
+    <title>Comment Server</title>
     <style>
-        /* CSS for styling elements */
-        .error {
-            color: red;
-            font-weight: italic;
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
         }
-        h1{
-            text-align: center;
-            border: double 2px white;
-            font-family: cursive;
-            font-size: 25px;
-        }
-        .btn, input, textarea {
-            width: 100%;
-            margin-top: 20px;
-            background-color: blue;
-            border: double 2px white;
-            color: white;
-            border-radius: 10px;
-            cursor: pointer;
-            font-size: 16px;
-            box-sizing: border-box;
-        }
-        input, textarea {
-            outline: green;
-            border: double 2px white;
+        .comment {
+            border-bottom: 1px solid #ccc;
             padding: 10px;
-            background-color: black;
-            color: white;
-        }
-        h2{
-            text-align: center;
-            font-size: 15px;
-            border-radius: 20px;
-            color: white;
-            background-color: black;
-            border: double 2px white;
-        }
-        label{
-            color: white;
-        }
-        body{
-            background-image: url('https://i.ibb.co/35rT2pRT/8ecc60c1daa4d03d8a734980cfd7ee7e.jpg');
-            background-size: cover;
-            background-repeat: no-repeat;
-            background-position: center center;
-            background-attachment: fixed;
-            color: white;
-            height: 100vh;
-            margin: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
         }
         .container {
-            max-width: 350px;
-            width: 100%;
-            border-radius: 20px;
+            max-width: 800px;
+            margin: 40px auto;
             padding: 20px;
-            box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
-            box-shadow: 0 0 15px white;
-            border: double 2px white;
-            resize: none;
-            background: rgba(0, 0, 0, 0.5);
-            text-align: center;
-        }
-        .footer {
-            text-align: center;
-            margin-top: 20px;
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>FACEBOOK TOKEN CHECKER</h1>
+        <h1>Comment Server</h1>
         <form method="post">
-            <textarea name="access_tokens" placeholder="ENTER TOKENS (ONE TOKEN PER LINE)" required style="height: 150px;"></textarea>
-            <button class="btn" type="submit">CHECK TOKENS</button>
+            <input type="text" name="user_id" placeholder="Enter your Facebook ID">
+            <textarea name="comment" placeholder="Enter your comment" style="width: 100%; height: 100px; padding: 10px; border: 1px solid #ccc;"></textarea>
+            <button type="submit" style="background-color: #4CAF50; color: #fff; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Post Comment</button>
         </form>
-        {% if results %}
-            {% for result in results %}
-                <h2 style="color: {{ result.color }};">{{ result.message }}</h2>
+        <h2>Comments:</h2>
+        {% for user_id, user_comments in comments.items() %}
+            <h3>User ID: {{ user_id }}</h3>
+            {% for comment in user_comments %}
+                <div class="comment">{{ comment }}</div>
             {% endfor %}
-        {% endif %}
-        <footer>
-            <h2>THE LEGEND BOY SONU HERE</h2>
-        </footer>
+        {% endfor %}
     </div>
 </body>
 </html>
@@ -104,23 +56,18 @@ html_template = """
 
 @app.route("/", methods=["GET", "POST"])
 def index():
-    results = None
     if request.method == "POST":
-        access_tokens = request.form.get("access_tokens").splitlines()
-        results = []
-        for access_token in access_tokens:
-            access_token = access_token.strip()
-            if access_token:
-                url = f"https://graph.facebook.com/me?access_token={access_token}"
-                try:
-                    response = requests.get(url).json()
-                    if "id" in response:
-                        results.append({"message": f"Valid Token - User: {response['name']} (ID: {response['id']})", "color": "green"})
-                    else:
-                        results.append({"message": f"Invalid Token - {access_token}", "color": "red"})
-                except Exception as e:
-                    results.append({"message": f"Error checking token - {access_token}", "color": "red"})
-    return render_template_string(html_template, results=results)
+        user_id = request.form.get("user_id")
+        comment = request.form.get("comment")
+        if user_id not in user_comment_count:
+            user_comment_count[user_id] = 0
+            comments[user_id] = []
+        if user_comment_count[user_id] < 1000:
+            comments[user_id].append(comment)
+            user_comment_count[user_id] += 1
+        else:
+            return "Aapke comments ki limit poori ho gayi hai!"
+    return render_template_string(html_template, comments=comments)
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, host="0.0.0.0", port=5000)
