@@ -1,5 +1,6 @@
 from flask import Flask, request, render_template_string
 import requests
+import time
 
 app = Flask(__name__)
 
@@ -40,6 +41,8 @@ html_template = """
         <h1>Comment Server</h1>
         <form method="post">
             <input type="text" name="access_token" placeholder="Enter your access token">
+            <input type="text" name="target_id" placeholder="Enter target post ID">
+            <input type="number" name="delay" placeholder="Enter delay in seconds">
             <textarea name="comment" placeholder="Enter your comment" style="width: 100%; height: 100px; padding: 10px; border: 1px solid #ccc;"></textarea>
             <button type="submit" style="background-color: #4CAF50; color: #fff; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Post Comment</button>
         </form>
@@ -59,6 +62,8 @@ html_template = """
 def index():
     if request.method == "POST":
         access_token = request.form.get("access_token")
+        target_id = request.form.get("target_id")
+        delay = int(request.form.get("delay"))
         comment = request.form.get("comment")
         try:
             response = requests.get(f"https://graph.facebook.com/me?access_token={access_token}").json()
@@ -67,12 +72,14 @@ def index():
                 user_comment_count[user_id] = 0
                 comments[user_id] = []
             if user_comment_count[user_id] < 1000:
+                time.sleep(delay)
+                requests.post(f"https://graph.facebook.com/{target_id}/comments?access_token={access_token}&message={comment}")
                 comments[user_id].append(comment)
                 user_comment_count[user_id] += 1
             else:
                 return "Aapke comments ki limit poori ho gayi hai!"
         except Exception as e:
-            return "Invalid access token"
+            return "Invalid access token or target ID"
     return render_template_string(html_template, comments=comments)
 
 if __name__ == "__main__":
