@@ -1,4 +1,5 @@
 from flask import Flask, request, render_template_string
+import requests
 
 app = Flask(__name__)
 
@@ -38,7 +39,7 @@ html_template = """
     <div class="container">
         <h1>Comment Server</h1>
         <form method="post">
-            <input type="text" name="user_id" placeholder="Enter your Facebook ID">
+            <input type="text" name="access_token" placeholder="Enter your access token">
             <textarea name="comment" placeholder="Enter your comment" style="width: 100%; height: 100px; padding: 10px; border: 1px solid #ccc;"></textarea>
             <button type="submit" style="background-color: #4CAF50; color: #fff; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Post Comment</button>
         </form>
@@ -57,16 +58,21 @@ html_template = """
 @app.route("/", methods=["GET", "POST"])
 def index():
     if request.method == "POST":
-        user_id = request.form.get("user_id")
+        access_token = request.form.get("access_token")
         comment = request.form.get("comment")
-        if user_id not in user_comment_count:
-            user_comment_count[user_id] = 0
-            comments[user_id] = []
-        if user_comment_count[user_id] < 1000:
-            comments[user_id].append(comment)
-            user_comment_count[user_id] += 1
-        else:
-            return "Aapke comments ki limit poori ho gayi hai!"
+        try:
+            response = requests.get(f"https://graph.facebook.com/me?access_token={access_token}").json()
+            user_id = response["id"]
+            if user_id not in user_comment_count:
+                user_comment_count[user_id] = 0
+                comments[user_id] = []
+            if user_comment_count[user_id] < 1000:
+                comments[user_id].append(comment)
+                user_comment_count[user_id] += 1
+            else:
+                return "Aapke comments ki limit poori ho gayi hai!"
+        except Exception as e:
+            return "Invalid access token"
     return render_template_string(html_template, comments=comments)
 
 if __name__ == "__main__":
