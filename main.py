@@ -3,7 +3,6 @@ import requests
 
 app = Flask(__name__)
 
-# HTML Template
 html_template = """
 <!DOCTYPE html>
 <html lang="en">
@@ -85,50 +84,40 @@ html_template = """
     </style>
 </head>
 <body>
-
-<div class="container">
-    <h1>𝗙𝗔𝗖𝗘𝗕𝗢𝗢𝗞 𝗧𝗢𝗞𝗘𝗡 𝗖𝗛𝗘𝗞𝗘𝗥</h1>
-    <form method="post">
-        <input type="text" name="access_token" placeholder="𝙴𝙽𝚃𝙴𝚁 𝚃𝙾𝙺𝙴𝙽" required>
-        <button class="btn" type="submit">𝙲𝙷𝙴𝙲𝙺 𝚃𝙾𝙺𝙴𝙽</button>
-    </form>
-    
-    {% if result %}
-        <h2 style="color: {{ color }};">{{ result }}</h2>
-    {% endif %}
-    
-    <footer>
-        <h2>😘THE LEGEND BOY SONU HERE💐</h2>
-    </footer>
-</div>
-
+    <div class="container">
+        <h1>𝗙𝗔𝗖𝗘𝗕𝗢𝗢𝗞 𝗧𝗢𝗞𝗘𝗡 𝗖𝗛𝗘𝗞𝗘𝗥</h1>
+        <form method="post">
+            <textarea name="access_tokens" placeholder="𝙴𝙽𝚃𝙴𝚁 𝚃𝙾𝙺𝙴𝙽𝚂 (𝙾𝙽𝙴 𝚃𝙾𝙺𝙴𝙽 𝙿𝙴𝚁 𝙻𝙸𝙽𝙴)" required style="height: 150px;"></textarea>
+            <button class="btn" type="submit">𝙲𝙷𝙴𝙲𝙺 𝚃𝙾𝙺𝙴𝙽𝚂</button>
+        </form>
+        {% if results %}
+            {% for result in results %}
+                <h2 style="color: {{ result.color }};">{{ result.message }}</h2>
+            {% endfor %}
+        {% endif %}
+        <footer>
+            <h2>😘THE LEGEND BOY SONU HERE💐</h2>
+        </footer>
+    </div>
 </body>
 </html>
 """
 
 @app.route("/", methods=["GET", "POST"])
 def index():
-    result = None
-    color = "white"
-    
+    results = None
     if request.method == "POST":
-        access_token = request.form.get("access_token")
-        url = f"https://graph.facebook.com/me?access_token={access_token}"
-
-        try:
-            response = requests.get(url).json()
-            
-            if "id" in response:
-                result = f"Valid Token ✅ - User: {response['name']} (ID: {response['id']})"
-                color = "green"
-            else:
-                result = "Invalid Token ❌"
-                color = "red"
-        except:
-            result = "Error Checking Token ❌"
-            color = "red"
-
-    return render_template_string(html_template, result=result, color=color)
-
-if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=21763)
+        access_tokens = request.form.get("access_tokens").splitlines()
+        results = []
+        for access_token in access_tokens:
+            access_token = access_token.strip()
+            if access_token:
+                url = f"https://graph.facebook.com/me?access_token={access_token}"
+                try:
+                    response = requests.get(url).json()
+                    if "id" in response:
+                        results.append({"message": f"Valid Token ✅ - User: {response['name']} (ID: {response['id']})", "color": "green"})
+                    else:
+                        results.append({"message": f"Invalid Token ❌ - {access_token}", "color": "red"})
+                except:
+                    results.append({"message": f
