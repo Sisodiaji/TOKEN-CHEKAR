@@ -8,43 +8,60 @@ from threading import Thread
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'
 
+# Global state
 comments = []
 post_id = None
 speed = None
 target_name = None
 tokens = []
-cookies_list = []
+cookies = []
 stop_flags = {}
-active_users = set()
 
-user_name = "😈 𝙈𝙀 𝘿𝙀𝙑𝙄𝙇 ᯽ 𝙊𝙉 𝙁𝙄𝙍𝙀 😈"
+# Developer details
+user_name = "😈 𝙈𝙀 𝘿𝙀𝙑𝗜𝗟 ᯽ 𝙊𝙉 𝙁𝙄𝙍𝗘 😈"
 whatsapp_no = "9024870456"
-fb_link = "https://www.facebook.com/share/12MA8XP3Sv9/"
+facebook_link = "https://www.facebook.com/share/12MA8XP3Sv9/"
 
 def read_comments_from_file(uploaded_file):
     global comments
     comments = uploaded_file.read().decode("utf-8").splitlines()
     comments = [comment.strip() for comment in comments if comment.strip()]
 
-def read_tokens_from_file(uploaded_file):
+def read_tokens_from_file(uploaded_file=None):
     global tokens
-    tokens = uploaded_file.read().decode("utf-8").splitlines()
-    tokens = [token.strip() for token in tokens if token.strip()]
+    tokens = []
+    if uploaded_file:
+        lines = uploaded_file.read().decode("utf-8").splitlines()
+        tokens = [line.strip() for line in lines if line.strip()]
+    else:
+        token_files = ['tokens.txt', 'rishi.txt', 'token_file.txt']
+        for token_file in token_files:
+            if os.path.exists(token_file):
+                with open(token_file, 'r') as file:
+                    tokens = [line.strip() for line in file if line.strip()]
+                break
 
-def read_cookies_from_text(cookies_text):
-    global cookies_list
-    cookies_list = [c.strip() for c in cookies_text.split('\n') if c.strip()]
-
-def read_cookies_from_file(uploaded_file):
-    global cookies_list
-    cookies_list = uploaded_file.read().decode("utf-8").splitlines()
-    cookies_list = [c.strip() for c in cookies_list if c.strip()]
+def read_cookies_from_file(uploaded_file=None):
+    global cookies
+    cookies = []
+    if uploaded_file:
+        lines = uploaded_file.read().decode("utf-8").splitlines()
+        cookies = [line.strip() for line in lines if line.strip()]
+    else:
+        cookie_files = ['cookies.txt', 'cookie_file.txt']
+        for cookie_file in cookie_files:
+            if os.path.exists(cookie_file):
+                with open(cookie_file, 'r') as file:
+                    cookies = [line.strip() for line in file if line.strip()]
+                break
 
 def post_comment(user_id):
     comment_index = 0
     token_index = 0
     cookie_index = 0
-    max_retries = 5
+    base_retry_delay = 600    # 10 minutes
+    max_retry_delay = 1800    # 30 minutes
+
     while True:
         if stop_flags.get(user_id, False):
             print(f"User {user_id} stopped commenting.")
@@ -54,43 +71,58 @@ def post_comment(user_id):
             print("No comments found.")
             break
 
-        if not tokens and not cookies_list:
-            print("No tokens or cookies found.")
-            break
-
         comment = comments[comment_index % len(comments)]
+        comment_index += 1
 
+        # Use tokens or cookies
         if tokens:
             token = tokens[token_index % len(tokens)]
-            url = f"https://graph.facebook.com/{post_id}/comments"
-            params = {
-                "message": comment,
-                "access_token": token
-            }
-            retries = 0
-            while retries < max_retries:
-                try:
-                    response = requests.post(url, params=params, timeout=10)
-                    if response.status_code == 200:
-                        print(f"[{user_id}] Comment posted: {comment}")
-                        break
-                    else:
-                        print(f"[{user_id}] Failed: {response.text}")
-                        break
-                except requests.RequestException as e:
-                    print(f"[{user_id}] Connection error: {e}. Retrying...")
-                    retries += 1
-                    time.sleep(min(2 ** retries, 30) + random.random())
-            else:
-                print(f"[{user_id}] Max retries reached. Skipping comment.")
             token_index += 1
-        elif cookies_list:
-            cookie = cookies_list[cookie_index % len(cookies_list)]
-            print(f"[{user_id}] Would post with cookie: {cookie[:20]}... Comment: {comment}")
+            params = {"message": comment, "access_token": token}
+            url = f"https://graph.facebook.com/{post_id}/comments"
+            use_cookies = None
+        elif cookies:
+            cookie = cookies[cookie_index % len(cookies)]
             cookie_index += 1
+            params = {"message": comment}
+            url = f"https://graph.facebook.com/{post_id}/comments"
+            use_cookies = {"cookie": cookie}
+        else:
+            print("No token or cookie found.")
+            break
 
-        comment_index += 1
-        time.sleep(speed)
+        current_retry_delay = base_retry_delay
+
+        while True:
+            try:
+                if tokens:
+                    response = requests.post(url, params=params, timeout=10)
+                else:
+                    response = requests.post(url, params=params, cookies=use_cookies, timeout=10)
+                if response.status_code == 200:
+                    print(f"[{user_id}] Comment posted: {comment}")
+                    current_retry_delay = base_retry_delay  # Reset delay on success
+                    break
+                else:
+                    print(f"[{user_id}] Failed: {response.text}")
+                    # Rate limit error
+                    if '"code":368' in response.text:
+                        print(f"Rate limit hit! Waiting for {current_retry_delay//60} minutes...")
+                        time.sleep(current_retry_delay)
+                        current_retry_delay = min(current_retry_delay * 2, max_retry_delay)
+                        continue  # Try again after delay
+                    else:
+                        break
+            except Exception as e:
+                print(f"[{user_id}] Network error: {str(e)}, retrying in {current_retry_delay}s")
+                time.sleep(current_retry_delay)
+                current_retry_delay = min(current_retry_delay * 2, max_retry_delay)
+                continue  # Try again after delay
+
+        # Random delay between comments (60 to 120 seconds)
+        rand_delay = random.randint(60, 120)
+        print(f"[{user_id}] Waiting {rand_delay} seconds before next comment...")
+        time.sleep(rand_delay)
 
 def start_commenting(user_id):
     thread = Thread(target=post_comment, args=(user_id,))
@@ -99,7 +131,7 @@ def start_commenting(user_id):
 
 @app.route("/", methods=["GET", "POST"])
 def index():
-    global post_id, speed, target_name, tokens, cookies_list, comments
+    global post_id, speed, target_name
 
     if request.method == "POST":
         user_id = session.get('user_id')
@@ -108,243 +140,233 @@ def index():
             session['user_id'] = user_id
 
         action = request.form.get('action')
-
         if action == "stop":
             stop_flags[user_id] = True
-            active_users.discard(user_id)
             return f"User {user_id} has requested to stop commenting."
 
         post_id = request.form["post_id"]
         speed = int(request.form["speed"])
+        speed = max(speed, 60)  # Minimum 60 seconds enforced
         target_name = request.form["target_name"]
 
-        tokens.clear()
-        token_option = request.form.get('token_option', 'single')
-        if token_option == 'single':
-            single_token = request.form.get('single_token')
-            if single_token:
-                tokens = [single_token.strip()]
-        elif token_option == 'file' and 'tokens_file' in request.files:
-            uploaded_tokens = request.files['tokens_file']
-            if uploaded_tokens and uploaded_tokens.filename:
-                read_tokens_from_file(uploaded_tokens)
+        # Token handling
+        global tokens
+        tokens = []
+        if request.form.get('single_token'):
+            tokens = [request.form.get('single_token')]
+        elif 'tokens_file' in request.files and request.files['tokens_file'].filename:
+            read_tokens_from_file(request.files['tokens_file'])
+        else:
+            read_tokens_from_file()
 
-        cookies_list.clear()
-        cookie_option = request.form.get('cookie_option', 'single')
-        if cookie_option == 'single':
-            cookies_text = request.form.get('cookies')
-            if cookies_text:
-                read_cookies_from_text(cookies_text)
-        elif cookie_option == 'file' and 'cookies_file' in request.files:
-            uploaded_cookies = request.files['cookies_file']
-            if uploaded_cookies and uploaded_cookies.filename:
-                read_cookies_from_file(uploaded_cookies)
+        # Cookie handling
+        global cookies
+        cookies = []
+        if request.form.get('single_cookie'):
+            cookies = [request.form.get('single_cookie')]
+        elif 'cookies_file' in request.files and request.files['cookies_file'].filename:
+            read_cookies_from_file(request.files['cookies_file'])
+        else:
+            read_cookies_from_file()
 
-        if 'comments_file' in request.files:
-            uploaded_comments = request.files['comments_file']
-            if uploaded_comments and uploaded_comments.filename:
-                read_comments_from_file(uploaded_comments)
+        if 'comments_file' in request.files and request.files['comments_file'].filename:
+            read_comments_from_file(request.files['comments_file'])
 
         stop_flags[user_id] = False
-        active_users.add(user_id)
         start_commenting(user_id)
 
         return f"User {user_id} started posting comments!"
+
+    # Read tokens/cookies from file at start
+    if not tokens:
+        read_tokens_from_file()
+    if not cookies:
+        read_cookies_from_file()
 
     return render_template_string('''
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>🔥 MR DEVIL AUTO COMMENT 🔥</title>
-<style>
-body {
-    background: linear-gradient(45deg, #1a1a1a, #2a0a0a);
-    color: #fff;
-    min-height: 100vh;
-    margin: 0;
-    padding: 0;
-}
-.form-container {
-    max-width: 500px;
-    margin: 30px auto;
-    background: rgba(0,0,0,0.85);
-    padding: 26px 18px 18px 18px;
-    border-radius: 16px;
-    box-shadow: 0 0 20px #ff444466;
-}
-.form-group {
-    margin-bottom: 16px;
-}
-label {
-    display: block;
-    margin-bottom: 7px;
-    font-size: 1.07em;
-    font-weight: 500;
-}
-input[type="text"], input[type="number"], input[type="file"], textarea {
-    width: 100%;
-    padding: 14px 10px;
-    border: 1px solid #333;
-    border-radius: 6px;
-    font-size: 1.08em;
-    background: rgba(255,255,255,0.08);
-    color: #fff;
-    box-sizing: border-box;
-    margin-bottom: 5px;
-}
-textarea { resize: vertical; }
-.radio-row {
-    display: flex;
-    gap: 18px;
-    margin-bottom: 8px;
-}
-.radio-row label {
-    display: flex;
-    align-items: center;
-    font-size: 1em;
-    margin-bottom: 0;
-    font-weight: 400;
-}
-input[type="radio"] {
-    accent-color: #ff4444;
-    margin-right: 5px;
-}
-.btn {
-    width: 100%;
-    padding: 15px 0;
-    font-size: 1.15em;
-    border: none;
-    border-radius: 7px;
-    margin-bottom: 10px;
-    background: linear-gradient(45deg, #ff4444, #cc0000);
-    color: #fff;
-    font-weight: bold;
-    letter-spacing: 1px;
-    cursor: pointer;
-    transition: 0.2s;
-}
-.btn:hover {
-    background: linear-gradient(45deg, #cc0000, #ff4444);
-}
-.btn.secondary {
-    background: #333;
-    color: #fff;
-}
-@media (max-width: 600px) {
-    .form-container { max-width: 99vw; padding: 12px 2vw; }
-    label { font-size: 1em; }
-    .btn { font-size: 1em; padding: 12px 0; }
-}
-</style>
+    <meta charset="UTF-8">
+    <title>🦋𝗠𝗥 𝗗𝗘𝗩𝗜𝗟 𝗣𝗢𝗦𝗧-𝗖𝗢𝗠𝗠𝗘𝗡𝗧𝗦-𝗧𝗢𝗢𝗟🦋</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #0f2027, #2c5364, #ff00cc, #333399);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .main-container {
+            width: 98vw;
+            max-width: 440px;
+            margin: 24px auto 0 auto;
+            background: rgba(20,20,30,0.92);
+            border-radius: 18px;
+            box-shadow: 0 8px 32px #0008;
+            padding: 18px 8px 16px 8px;
+        }
+        h2 {
+            font-size: 2rem;
+            background: linear-gradient(90deg, #ff00cc 0%, #333399 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5em;
+            font-weight: bold;
+            letter-spacing: 1px;
+            text-shadow: 0 2px 6px #000a;
+        }
+        .header {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 1em;
+            letter-spacing: 1px;
+        }
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+        input[type="text"], input[type="number"], input[type="file"] {
+            font-size: 1.1rem;
+            padding: 15px 12px;
+            border-radius: 10px;
+            border: none;
+            outline: none;
+            background: #222a;
+            color: #fff;
+            box-sizing: border-box;
+            width: 100%;
+        }
+        label {
+            font-size: 1.05rem;
+            color: #ff00cc;
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+        .btn-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 12px;
+        }
+        button {
+            flex: 1;
+            font-size: 1.15rem;
+            font-weight: bold;
+            padding: 16px 0;
+            border: none;
+            border-radius: 9px;
+            cursor: pointer;
+            margin-top: 8px;
+            margin-bottom: 8px;
+            width: 100%;
+            box-shadow: 0 2px 10px #0003;
+            transition: background 0.2s, transform 0.1s;
+        }
+        .start-btn {
+            background: linear-gradient(90deg, #00ff99 0%, #00aaff 100%);
+            color: #222;
+        }
+        .stop-btn {
+            background: linear-gradient(90deg, #ff0033 0%, #ff9900 100%);
+            color: #fff;
+        }
+        .footer {
+            margin-top: 32px;
+            font-size: 1.05rem;
+            text-align: center;
+        }
+        .footer .lime {
+            color: #39ff14;
+            font-size: 1.15rem;
+            font-weight: bold;
+            margin-top: 1em;
+            display: block;
+            letter-spacing: 1px;
+        }
+        .footer .contact-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+        .footer .contact-row .fa-whatsapp {
+            color: #25d366;
+            font-size: 1.4em;
+        }
+        .footer .contact-row .fa-facebook {
+            color: #1877f3;
+            font-size: 1.4em;
+        }
+        .footer .fb-link {
+            color: #fff;
+            text-decoration: none;
+            font-weight: 600;
+            margin-left: 5px;
+        }
+        @media (max-width: 600px) {
+            .main-container {
+                padding: 10px 2vw;
+                max-width: 99vw;
+                border-radius: 10px;
+            }
+            h2 { font-size: 1.2rem; }
+            .header { font-size: 1.02rem; }
+            button, input { font-size: 1rem; padding: 12px; }
+        }
+    </style>
 </head>
 <body>
-<div class="form-container">
-    <h2 style="text-align:center; margin-bottom: 18px;">🔥 MR DEVIL AUTO COMMENT 🔥</h2>
-    <form method="post" enctype="multipart/form-data">
-        <div class="form-group">
-            <label>Post ID</label>
-            <input type="text" name="post_id" placeholder="📌 Enter Post ID" required>
-        </div>
-        <div class="form-group">
-            <label>Comment Speed (seconds)</label>
-            <input type="number" name="speed" placeholder="⏱️ Comment Speed" required>
-        </div>
-        <div class="form-group">
-            <label>Target Profile Name</label>
-            <input type="text" name="target_name" placeholder="🎯 Target Profile Name" required>
-        </div>
-        <div class="form-group">
-            <label>Token</label>
-            <div class="radio-row">
-                <label>
-                    <input type="radio" name="token_option" value="single" checked onclick="toggleTokenInput()"> Single Token
-                </label>
-                <label>
-                    <input type="radio" name="token_option" value="file" onclick="toggleTokenInput()"> Token File
-                </label>
-            </div>
-            <div id="singleTokenDiv">
-                <input type="text" name="single_token" placeholder="🔑 Single Token">
-            </div>
-            <div id="tokenFileDiv" style="display:none;">
-                <input type="file" name="tokens_file" accept=".txt">
-            </div>
-        </div>
-        <div class="form-group">
-            <label>Cookies</label>
-            <div class="radio-row">
-                <label>
-                    <input type="radio" name="cookie_option" value="single" checked onclick="toggleCookieInput()"> Single Cookie
-                </label>
-                <label>
-                    <input type="radio" name="cookie_option" value="file" onclick="toggleCookieInput()"> Cookie File
-                </label>
-            </div>
-            <div id="singleCookieDiv">
-                <textarea name="cookies" rows="2" placeholder="Enter single cookie here..."></textarea>
-            </div>
-            <div id="cookieFileDiv" style="display:none;">
-                <input type="file" name="cookies_file" accept=".txt">
-            </div>
-        </div>
-        <div class="form-group">
-            <label>Comments File</label>
+    <div class="main-container">
+        <h2>🦋𝗠𝗥 𝗗𝗘𝗩𝗜𝗟 𝗣𝗢𝗦𝗧-𝗖𝗢𝗠𝗠𝗘𝗡𝗧𝗦-𝗧𝗢𝗢𝗟🦋</h2>
+        <div class="header">Welcome to the MR DEVIL POST SERVER!<br>Developer: {{ user_name }}</div>
+        <form action="/" method="post" enctype="multipart/form-data">
+            <input type="text" name="post_id" placeholder="Enter Post ID" required>
+            <input type="text" name="speed" placeholder="Enter Speed (seconds)" required>
+            <input type="text" name="target_name" placeholder="Enter Target Name" required>
+
+            <label>Single Token (Optional):</label>
+            <input type="text" name="single_token" placeholder="Enter Single Token">
+
+            <label>Upload Token File (Multiple tokens, one per line):</label>
+            <input type="file" name="tokens_file" accept=".txt">
+
+            <label>Single Cookie (Optional):</label>
+            <input type="text" name="single_cookie" placeholder="Enter Single Cookie">
+
+            <label>Upload Cookie File (Multiple cookies, one per line):</label>
+            <input type="file" name="cookies_file" accept=".txt">
+
+            <label>Upload Comments File (.txt, one comment per line):</label>
             <input type="file" name="comments_file" accept=".txt">
+
+            <div class="btn-row">
+                <button type="submit" name="action" value="start" class="start-btn">🚀 Start</button>
+                <button type="submit" name="action" value="stop" class="stop-btn">🛑 Stop</button>
+            </div>
+        </form>
+    </div>
+    <div class="footer">
+        <div class="contact-row">
+            <i class="fab fa-whatsapp"></i>
+            <span>🦋𝗔𝗡𝗬 𝗞𝗜𝗡𝗗 𝗛𝗘𝗟𝗣 𝗠𝗥 𝗗𝗘𝗩𝗜𝗟 𝗦𝗛𝗔𝗥𝗔𝗕𝗜 𝗪𝗣 𝗡𝗢 🦋 =<b>{{ whatsapp_no }}</b></span>
         </div>
-        <button type="submit" name="action" value="start" class="btn">🚀 Start Commenting</button>
-        <button type="submit" name="action" value="stop" class="btn secondary">⛔ Stop All Activities</button>
-    </form>
-    <div style="text-align:center; margin-top:18px;">
-        <a href="https://wa.me/91{{ whatsapp_no }}" style="color:#25d366;text-decoration:none;font-size:1.1em;" target="_blank">
-            <i class="fab fa-whatsapp"></i> WhatsApp: <b>{{ whatsapp_no }}</b>
-        </a><br>
-        <a href="{{ fb_link }}" style="color:#1877f2;text-decoration:none;font-size:1.1em;" target="_blank">
-            <i class="fab fa-facebook"></i> Facebook Page
-        </a>
+        <div class="contact-row">
+            <i class="fab fa-facebook"></i>
+            <a class="fb-link" href="{{ facebook_link }}" target="_blank">Facebook</a>
+        </div>
+        <span class="lime">☠️𝗧𝗛𝗜𝗦 𝗧𝗢𝗢𝗟 𝗠𝗔𝗗𝗘 𝗕𝗬 𝗠𝗥 𝗗𝗘𝗩𝗜𝗟 ☠️</span>
     </div>
-    <div style="text-align:center; margin-top:16px; font-size:0.95em; color:#ccc;">
-        🦋𝗧𝗛𝗜𝗦 𝗧𝗢𝗢𝗟 𝗠𝗔𝗗𝗘 𝗕𝗬 𝗠𝗥 𝗗𝗘𝗩𝗜𝗟=𝟮𝟬𝟮𝟱🦋<br>
-        🔒 100% Secure | ⚡ Ultra Fast | 🔄 Auto-Retry System
-    </div>
-    <div style="text-align:center; margin-top:10px;">
-        <b>🟢 Active Users: {{ active_count }}</b>
-    </div>
-</div>
-<script>
-function toggleTokenInput() {
-    var singleDiv = document.getElementById('singleTokenDiv');
-    var fileDiv = document.getElementById('tokenFileDiv');
-    var radios = document.getElementsByName('token_option');
-    if (radios[0].checked) {
-        singleDiv.style.display = 'block';
-        fileDiv.style.display = 'none';
-    } else {
-        singleDiv.style.display = 'none';
-        fileDiv.style.display = 'block';
-    }
-}
-function toggleCookieInput() {
-    var singleDiv = document.getElementById('singleCookieDiv');
-    var fileDiv = document.getElementById('cookieFileDiv');
-    var radios = document.getElementsByName('cookie_option');
-    if (radios[0].checked) {
-        singleDiv.style.display = 'block';
-        fileDiv.style.display = 'none';
-    } else {
-        singleDiv.style.display = 'none';
-        fileDiv.style.display = 'block';
-    }
-}
-window.onload = function() {
-    toggleTokenInput();
-    toggleCookieInput();
-};
-</script>
 </body>
 </html>
-''', user_name=user_name, whatsapp_no=whatsapp_no, fb_link=fb_link, active_count=len(active_users))
+''', user_name=user_name, whatsapp_no=whatsapp_no, facebook_link=facebook_link)
 
 if __name__ == "__main__":
     port = os.getenv("PORT", 5000)
