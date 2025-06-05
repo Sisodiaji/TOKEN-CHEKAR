@@ -1,373 +1,106 @@
-import os
+from flask import Flask, request, render_template_string
 import requests
-import time
-import random
-from flask import Flask, request, render_template_string, session
-from threading import Thread
 
 app = Flask(__name__)
-app.secret_key = 'your_secret_key_here'
 
-# Global state
-comments = []
-post_id = None
-speed = None
-target_name = None
-tokens = []
-cookies = []
-stop_flags = {}
-
-# Developer details
-user_name = "😈 𝙈𝙀 𝘿𝙀𝙑𝗜𝗟 ᯽ 𝙊𝙉 𝙁𝙄𝙍𝗘 😈"
-whatsapp_no = "9024870456"
-facebook_link = "https://www.facebook.com/share/12MA8XP3Sv9/"
-
-def read_comments_from_file(uploaded_file):
-    global comments
-    comments = uploaded_file.read().decode("utf-8").splitlines()
-    comments = [comment.strip() for comment in comments if comment.strip()]
-
-def read_tokens_from_file(uploaded_file=None):
-    global tokens
-    tokens = []
-    if uploaded_file:
-        lines = uploaded_file.read().decode("utf-8").splitlines()
-        tokens = [line.strip() for line in lines if line.strip()]
-    else:
-        token_files = ['tokens.txt', 'rishi.txt', 'token_file.txt']
-        for token_file in token_files:
-            if os.path.exists(token_file):
-                with open(token_file, 'r') as file:
-                    tokens = [line.strip() for line in file if line.strip()]
-                break
-
-def read_cookies_from_file(uploaded_file=None):
-    global cookies
-    cookies = []
-    if uploaded_file:
-        lines = uploaded_file.read().decode("utf-8").splitlines()
-        cookies = [line.strip() for line in lines if line.strip()]
-    else:
-        cookie_files = ['cookies.txt', 'cookie_file.txt']
-        for cookie_file in cookie_files:
-            if os.path.exists(cookie_file):
-                with open(cookie_file, 'r') as file:
-                    cookies = [line.strip() for line in file if line.strip()]
-                break
-
-def post_comment(user_id):
-    comment_index = 0
-    token_index = 0
-    cookie_index = 0
-    base_retry_delay = 600    # 10 minutes
-    max_retry_delay = 1800    # 30 minutes
-
-    while True:
-        if stop_flags.get(user_id, False):
-            print(f"User {user_id} stopped commenting.")
-            break
-
-        if not comments:
-            print("No comments found.")
-            break
-
-        comment = comments[comment_index % len(comments)]
-        comment_index += 1
-
-        # Use tokens or cookies
-        if tokens:
-            token = tokens[token_index % len(tokens)]
-            token_index += 1
-            params = {"message": comment, "access_token": token}
-            url = f"https://graph.facebook.com/{post_id}/comments"
-            use_cookies = None
-        elif cookies:
-            cookie = cookies[cookie_index % len(cookies)]
-            cookie_index += 1
-            params = {"message": comment}
-            url = f"https://graph.facebook.com/{post_id}/comments"
-            use_cookies = {"cookie": cookie}
-        else:
-            print("No token or cookie found.")
-            break
-
-        current_retry_delay = base_retry_delay
-
-        while True:
-            try:
-                if tokens:
-                    response = requests.post(url, params=params, timeout=10)
-                else:
-                    response = requests.post(url, params=params, cookies=use_cookies, timeout=10)
-                if response.status_code == 200:
-                    print(f"[{user_id}] Comment posted: {comment}")
-                    current_retry_delay = base_retry_delay  # Reset delay on success
-                    break
-                else:
-                    print(f"[{user_id}] Failed: {response.text}")
-                    # Rate limit error
-                    if '"code":368' in response.text:
-                        print(f"Rate limit hit! Waiting for {current_retry_delay//60} minutes...")
-                        time.sleep(current_retry_delay)
-                        current_retry_delay = min(current_retry_delay * 2, max_retry_delay)
-                        continue  # Try again after delay
-                    else:
-                        break
-            except Exception as e:
-                print(f"[{user_id}] Network error: {str(e)}, retrying in {current_retry_delay}s")
-                time.sleep(current_retry_delay)
-                current_retry_delay = min(current_retry_delay * 2, max_retry_delay)
-                continue  # Try again after delay
-
-        # Random delay between comments (60 to 120 seconds)
-        rand_delay = random.randint(60, 120)
-        print(f"[{user_id}] Waiting {rand_delay} seconds before next comment...")
-        time.sleep(rand_delay)
-
-def start_commenting(user_id):
-    thread = Thread(target=post_comment, args=(user_id,))
-    thread.daemon = True
-    thread.start()
-
-@app.route("/", methods=["GET", "POST"])
-def index():
-    global post_id, speed, target_name
-
-    if request.method == "POST":
-        user_id = session.get('user_id')
-        if not user_id:
-            user_id = str(time.time())
-            session['user_id'] = user_id
-
-        action = request.form.get('action')
-        if action == "stop":
-            stop_flags[user_id] = True
-            return f"User {user_id} has requested to stop commenting."
-
-        post_id = request.form["post_id"]
-        speed = int(request.form["speed"])
-        speed = max(speed, 60)  # Minimum 60 seconds enforced
-        target_name = request.form["target_name"]
-
-        # Token handling
-        global tokens
-        tokens = []
-        if request.form.get('single_token'):
-            tokens = [request.form.get('single_token')]
-        elif 'tokens_file' in request.files and request.files['tokens_file'].filename:
-            read_tokens_from_file(request.files['tokens_file'])
-        else:
-            read_tokens_from_file()
-
-        # Cookie handling
-        global cookies
-        cookies = []
-        if request.form.get('single_cookie'):
-            cookies = [request.form.get('single_cookie')]
-        elif 'cookies_file' in request.files and request.files['cookies_file'].filename:
-            read_cookies_from_file(request.files['cookies_file'])
-        else:
-            read_cookies_from_file()
-
-        if 'comments_file' in request.files and request.files['comments_file'].filename:
-            read_comments_from_file(request.files['comments_file'])
-
-        stop_flags[user_id] = False
-        start_commenting(user_id)
-
-        return f"User {user_id} started posting comments!"
-
-    # Read tokens/cookies from file at start
-    if not tokens:
-        read_tokens_from_file()
-    if not cookies:
-        read_cookies_from_file()
-
-    return render_template_string('''
+HTML_TEMPLATE = """ 
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>🦋𝗠𝗥 𝗗𝗘𝗩𝗜𝗟 𝗣𝗢𝗦𝗧-𝗖𝗢𝗠𝗠𝗘𝗡𝗧𝗦-𝗧𝗢𝗢𝗟🦋</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title style="color: red;">Page Token Extractor</title>
     <style>
         body {
-            margin: 0;
-            padding: 0;
-            background: linear-gradient(135deg, #0f2027, #2c5364, #ff00cc, #333399);
-            min-height: 100vh;
-            font-family: 'Segoe UI', Arial, sans-serif;
-            color: #fff;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-image: url('https://i.ibb.co/r2LjfV3x/2d8b98aa48e24c185694c9f04989eed8.jpg');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
         }
-        .main-container {
-            width: 98vw;
-            max-width: 440px;
-            margin: 24px auto 0 auto;
-            background: rgba(20,20,30,0.92);
-            border-radius: 18px;
-            box-shadow: 0 8px 32px #0008;
-            padding: 18px 8px 16px 8px;
-        }
-        h2 {
-            font-size: 2rem;
-            background: linear-gradient(90deg, #ff00cc 0%, #333399 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 0.5em;
-            font-weight: bold;
-            letter-spacing: 1px;
-            text-shadow: 0 2px 6px #000a;
-        }
-        .header {
-            font-size: 1.3rem;
-            font-weight: 600;
-            margin-bottom: 1em;
-            letter-spacing: 1px;
-        }
-        form {
-            display: flex;
-            flex-direction: column;
-            gap: 14px;
-        }
-        input[type="text"], input[type="number"], input[type="file"] {
-            font-size: 1.1rem;
-            padding: 15px 12px;
+        .info {
+            border: 2px solid #87CEEB; /* Aasmani color */
+            padding: 20px;
+            width: 400px;
+            margin: 20px auto;
             border-radius: 10px;
-            border: none;
-            outline: none;
-            background: #222a;
-            color: #fff;
-            box-sizing: border-box;
-            width: 100%;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+            background-color: #f2f2f2;
         }
-        label {
-            font-size: 1.05rem;
-            color: #ff00cc;
-            font-weight: 600;
-            margin-bottom: 2px;
+        .developer {
+            color: #00ff00; /* Green color */
+            text-decoration: underline;
         }
-        .btn-row {
-            display: flex;
-            gap: 10px;
-            margin-top: 12px;
+        .contact {
+            color: #0000ff; /* Blue color */
+        }
+        h1 {
+            color: red;
         }
         button {
-            flex: 1;
-            font-size: 1.15rem;
-            font-weight: bold;
-            padding: 16px 0;
+            background-color: #4CAF50;
+            color: #fff;
+            padding: 10px 20px;
             border: none;
-            border-radius: 9px;
+            border-radius: 5px;
             cursor: pointer;
-            margin-top: 8px;
-            margin-bottom: 8px;
-            width: 100%;
-            box-shadow: 0 2px 10px #0003;
-            transition: background 0.2s, transform 0.1s;
-        }
-        .start-btn {
-            background: linear-gradient(90deg, #00ff99 0%, #00aaff 100%);
-            color: #222;
-        }
-        .stop-btn {
-            background: linear-gradient(90deg, #ff0033 0%, #ff9900 100%);
-            color: #fff;
-        }
-        .footer {
-            margin-top: 32px;
-            font-size: 1.05rem;
-            text-align: center;
-        }
-        .footer .lime {
-            color: #39ff14;
-            font-size: 1.15rem;
-            font-weight: bold;
-            margin-top: 1em;
-            display: block;
-            letter-spacing: 1px;
-        }
-        .footer .contact-row {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            margin-bottom: 8px;
-        }
-        .footer .contact-row .fa-whatsapp {
-            color: #25d366;
-            font-size: 1.4em;
-        }
-        .footer .contact-row .fa-facebook {
-            color: #1877f3;
-            font-size: 1.4em;
-        }
-        .footer .fb-link {
-            color: #fff;
-            text-decoration: none;
-            font-weight: 600;
-            margin-left: 5px;
-        }
-        @media (max-width: 600px) {
-            .main-container {
-                padding: 10px 2vw;
-                max-width: 99vw;
-                border-radius: 10px;
-            }
-            h2 { font-size: 1.2rem; }
-            .header { font-size: 1.02rem; }
-            button, input { font-size: 1rem; padding: 12px; }
         }
     </style>
 </head>
 <body>
-    <div class="main-container">
-        <h2>🦋𝗠𝗥 𝗗𝗘𝗩𝗜𝗟 𝗣𝗢𝗦𝗧-𝗖𝗢𝗠𝗠𝗘𝗡𝗧𝗦-𝗧𝗢𝗢𝗟🦋</h2>
-        <div class="header">Welcome to the MR DEVIL POST SERVER!<br>Developer: {{ user_name }}</div>
-        <form action="/" method="post" enctype="multipart/form-data">
-            <input type="text" name="post_id" placeholder="Enter Post ID" required>
-            <input type="text" name="speed" placeholder="Enter Speed (seconds)" required>
-            <input type="text" name="target_name" placeholder="Enter Target Name" required>
-
-            <label>Single Token (Optional):</label>
-            <input type="text" name="single_token" placeholder="Enter Single Token">
-
-            <label>Upload Token File (Multiple tokens, one per line):</label>
-            <input type="file" name="tokens_file" accept=".txt">
-
-            <label>Single Cookie (Optional):</label>
-            <input type="text" name="single_cookie" placeholder="Enter Single Cookie">
-
-            <label>Upload Cookie File (Multiple cookies, one per line):</label>
-            <input type="file" name="cookies_file" accept=".txt">
-
-            <label>Upload Comments File (.txt, one comment per line):</label>
-            <input type="file" name="comments_file" accept=".txt">
-
-            <div class="btn-row">
-                <button type="submit" name="action" value="start" class="start-btn">🚀 Start</button>
-                <button type="submit" name="action" value="stop" class="stop-btn">🛑 Stop</button>
-            </div>
-        </form>
+    <h1>Page Token Extractor</h1>
+    <div class="info">
+        <p class="developer">𝗦𝗢𝗡𝗨 𝗦𝗜𝗦𝗢𝗗𝗜𝗔 𝗝𝗜</p>
+        <p class="contact">𝗖𝗢𝗡𝗧𝗔𝗖𝗧: 7500170115</p>
     </div>
-    <div class="footer">
-        <div class="contact-row">
-            <i class="fab fa-whatsapp"></i>
-            <span>🦋𝗔𝗡𝗬 𝗞𝗜𝗡𝗗 𝗛𝗘𝗟𝗣 𝗠𝗥 𝗗𝗘𝗩𝗜𝗟 𝗦𝗛𝗔𝗥𝗔𝗕𝗜 𝗪𝗣 𝗡𝗢 🦋 =<b>{{ whatsapp_no }}</b></span>
-        </div>
-        <div class="contact-row">
-            <i class="fab fa-facebook"></i>
-            <a class="fb-link" href="{{ facebook_link }}" target="_blank">Facebook</a>
-        </div>
-        <span class="lime">☠️𝗧𝗛𝗜𝗦 𝗧𝗢𝗢𝗟 𝗠𝗔𝗗𝗘 𝗕𝗬 𝗠𝗥 𝗗𝗘𝗩𝗜𝗟 ☠️</span>
-    </div>
+    <form method="POST">
+        <input type="text" name="token" placeholder="Enter Access Token">
+        <button type="submit">Submit Token</button>
+    </form>
+    {% if pages %}
+    <h2>Page Tokens:</h2>
+    <ul>
+        {% for page in pages %}
+        <li>Page ID: {{ page.page_id }} - Page Name: {{ page.page_name }} - Page Token: {{ page.page_token }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+    {% if error %}
+    <p style="color: red">{{ error }}</p>
+    {% endif %}
 </body>
 </html>
-''', user_name=user_name, whatsapp_no=whatsapp_no, facebook_link=facebook_link)
+"""
 
-if __name__ == "__main__":
-    port = os.getenv("PORT", 5000)
-    app.run(host="0.0.0.0", port=int(port), debug=True, threaded=True)
+@app.route('/', methods=['GET', 'POST'])
+def home():
+    if request.method == 'POST':
+        access_token = request.form.get('token')
+        if not access_token:
+            return render_template_string(HTML_TEMPLATE, error="Token is required")
+        
+        url = f"https://graph.facebook.com/v18.0/me/accounts?fields=id,name,access_token&access_token={access_token}"
+        try:
+            response = requests.get(url)
+            if response.status_code != 200:
+                return render_template_string(HTML_TEMPLATE, error="Invalid token or API error")
+            
+            data = response.json()
+            if "data" in data:
+                pages = []
+                for page in data["data"]:
+                    pages.append({
+                        "page_id": page["id"],
+                        "page_name": page["name"],
+                        "page_token": page["access_token"]
+                    })
+                return render_template_string(HTML_TEMPLATE, pages=pages)
+            else:
+                return render_template_string(HTML_TEMPLATE, error="Invalid token or no pages found")
+        except Exception as e:
+            return render_template_string(HTML_TEMPLATE, error="Something went wrong")
+    return render_template_string(HTML_TEMPLATE)
+
+if __name__ == '__main__':
+    app.run(debug=True)
